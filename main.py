@@ -3,7 +3,6 @@
 Run:  uvicorn main:app --reload
 Open: http://127.0.0.1:8000
 """
-import html
 import json
 import os
 import tempfile
@@ -12,6 +11,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 
@@ -23,6 +23,7 @@ WORK_DIR = Path(tempfile.gettempdir()) / "mdb2wsnin"
 WORK_DIR.mkdir(exist_ok=True)
 
 app = FastAPI(title="MDB to WSNIN")
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 
 def convert(mdb_path: str, input_name: str) -> dict:
@@ -32,6 +33,16 @@ def convert(mdb_path: str, input_name: str) -> dict:
     return Converter(tables, input_name).build()
 
 
+def explain_error(exc: Exception) -> str:
+    """Turn parser/converter failures into a Russian message with a next step."""
+    text = str(exc)
+    if "DB file header" in text or "valid access database" in text:
+        return "Это не база Access: файл повреждён или сохранён в другом формате. Выгрузите заказ из К3 заново."
+    if "TPanels" in text:
+        return "В базе нет деталей К3-Мебель. Проверьте, что выгружена база заказа, а не другая таблица."
+    return f"Не удалось прочитать базу заказа: {text}"
+
+
 def remove_file(path: Path) -> None:
     path.unlink(missing_ok=True)
 
@@ -39,37 +50,6 @@ def remove_file(path: Path) -> None:
 @app.get("/", response_class=HTMLResponse)
 async def index():
     return (BASE_DIR / "static" / "index.html").read_text(encoding="utf-8")
-
-
-FILES_DIR = BASE_DIR / "test_wsnin"
-
-
-@app.get("/files", response_class=HTMLResponse)
-async def files_page():
-    """Simple download page for the .wsnin files in test_wsnin/.
-
-    Links are relative so the app also works behind a reverse-proxy prefix
-    (e.g. nginx `location /services/test/`).
-    """
-    files = sorted(FILES_DIR.glob("*.wsnin")) if FILES_DIR.is_dir() else []
-    rows = "".join(
-        f'<li><a href="files/{html.escape(f.name)}" download>{html.escape(f.name)}</a>'
-        f" <span>{f.stat().st_size / 1024:,.0f} КБ</span></li>"
-        for f in files
-    ) or "<li>Файлов нет</li>"
-    return f"""<!DOCTYPE html><html lang="ru"><head><meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1"><title>Файлы .wsnin</title>
-<style>body{{font:16px/1.6 system-ui,sans-serif;max-width:560px;margin:40px auto;padding:0 16px}}
-li{{margin:8px 0}} span{{color:#888;font-size:.9em}} a{{font-weight:600}}</style></head>
-<body><h1>Файлы .wsnin</h1><ul>{rows}</ul><p><a href="./">← Конвертер</a></p></body></html>"""
-
-
-@app.get("/files/{name}")
-async def download_file(name: str):
-    path = (FILES_DIR / name).resolve()
-    if path.parent != FILES_DIR.resolve() or path.suffix != ".wsnin" or not path.is_file():
-        raise HTTPException(404, "Файл не найден")
-    return FileResponse(path, media_type="application/json", filename=path.name)
 
 
 @app.post("/api/convert")
@@ -95,7 +75,7 @@ async def api_convert(file: UploadFile = File(...)):
         except HTTPException:
             raise
         except Exception as exc:
-            raise HTTPException(422, f"Не удалось сконвертировать файл: {exc}")
+            raise HTTPException(422, explain_error(exc))
 
         with open(dst, "w", encoding="utf-8") as out:
             json.dump(data, out, ensure_ascii=False, indent=2)
