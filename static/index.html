@@ -84,7 +84,7 @@ go.addEventListener("click", async () => {
   fd.append("file", file);
 
   try {
-    const res = await fetch("/api/convert", { method: "POST", body: fd });
+    const res = await fetch("api/convert",{ method: "POST", body: fd });
     if (!res.ok) {
       let msg = res.statusText;
       try { msg = (await res.json()).detail || msg; } catch {}

@@ -46,10 +46,14 @@ FILES_DIR = BASE_DIR / "test_wsnin"
 
 @app.get("/files", response_class=HTMLResponse)
 async def files_page():
-    """Simple download page for the .wsnin files in test_wsnin/."""
+    """Simple download page for the .wsnin files in test_wsnin/.
+
+    Links are relative so the app also works behind a reverse-proxy prefix
+    (e.g. nginx `location /services/test/`).
+    """
     files = sorted(FILES_DIR.glob("*.wsnin")) if FILES_DIR.is_dir() else []
     rows = "".join(
-        f'<li><a href="/files/{html.escape(f.name)}" download>{html.escape(f.name)}</a>'
+        f'<li><a href="files/{html.escape(f.name)}" download>{html.escape(f.name)}</a>'
         f" <span>{f.stat().st_size / 1024:,.0f} КБ</span></li>"
         for f in files
     ) or "<li>Файлов нет</li>"
@@ -57,7 +61,7 @@ async def files_page():
 <meta name="viewport" content="width=device-width, initial-scale=1"><title>Файлы .wsnin</title>
 <style>body{{font:16px/1.6 system-ui,sans-serif;max-width:560px;margin:40px auto;padding:0 16px}}
 li{{margin:8px 0}} span{{color:#888;font-size:.9em}} a{{font-weight:600}}</style></head>
-<body><h1>Файлы .wsnin</h1><ul>{rows}</ul><p><a href="/">← Конвертер</a></p></body></html>"""
+<body><h1>Файлы .wsnin</h1><ul>{rows}</ul><p><a href="./">← Конвертер</a></p></body></html>"""
 
 
 @app.get("/files/{name}")
