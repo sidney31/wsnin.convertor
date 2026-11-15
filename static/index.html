@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MDB → WSNIN</title>
+<style>
+  :root { --bg:#0f1115; --card:#181b22; --line:#2a2f3a; --text:#e8eaf0; --muted:#8b93a5; --accent:#5b8cff; --ok:#3ecf8e; --err:#ff6b6b; }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f4f6fa; --card:#fff; --line:#dde2ec; --text:#1a1d24; --muted:#6a7285; --accent:#3b6df0; --ok:#12a56a; --err:#d93a3a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; min-height:100vh; display:grid; place-items:center; background:var(--bg); color:var(--text);
+         font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; padding:24px; }
+  main { width:100%; max-width:560px; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:28px; }
+  h1 { margin:0 0 4px; font-size:1.4rem; }
+  p.sub { margin:0 0 20px; color:var(--muted); font-size:.95rem; }
+  #drop { border:2px dashed var(--line); border-radius:12px; padding:36px 16px; text-align:center; cursor:pointer;
+          transition:border-color .15s, background .15s; }
+  #drop.over, #drop:hover, #drop:focus-visible { border-color:var(--accent); background:color-mix(in srgb,var(--accent) 8%,transparent); outline:none; }
+  #drop strong { display:block; margin-bottom:4px; }
+  #drop span { color:var(--muted); font-size:.9rem; }
+  #fileinfo { margin-top:14px; font-size:.95rem; display:none; }
+  button { margin-top:16px; width:100%; padding:12px 16px; border:0; border-radius:10px; background:var(--accent); color:#fff;
+           font-size:1rem; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  #status { margin-top:16px; font-size:.95rem; min-height:1.4em; }
+  #status.err { color:var(--err); }
+  #status.ok { color:var(--ok); }
+  a.dl { display:inline-block; margin-top:10px; padding:10px 14px; border:1px solid var(--ok); border-radius:10px; color:var(--ok); text-decoration:none; font-weight:600; }
+  .bar { height:4px; background:var(--line); border-radius:2px; overflow:hidden; margin-top:12px; display:none; }
+  .bar i { display:block; height:100%; width:40%; background:var(--accent); animation:slide 1s infinite ease-in-out; }
+  @keyframes slide { 0%{margin-left:-40%} 100%{margin-left:100%} }
+</style>
+</head>
+<body>
+<main>
+  <h1>MDB → WSNIN</h1>
+  <p class="sub">Загрузите базу заказа К3-Мебель (.mdb). Вы получите файл .wsnin для раскроя: детали, кромка, отверстия, пазы и вырезы.</p>
+
+  <div id="drop" tabindex="0" role="button" aria-label="Выбрать файл">
+    <strong>Перетащите файл сюда</strong>
+    <span>или нажмите, чтобы выбрать .mdb / .accdb</span>
+  </div>
+  <input id="file" type="file" accept=".mdb,.accdb" hidden>
+  <div id="fileinfo"></div>
+
+  <button id="go" disabled>Конвертировать</button>
+  <div class="bar" id="bar"><i></i></div>
+  <div id="status" role="status" aria-live="polite"></div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const drop = $("drop"), input = $("file"), go = $("go"), info = $("fileinfo"), status = $("status"), bar = $("bar");
+let file = null, lastUrl = null;
+
+const fmtSize = (n) => n > 1048576 ? (n/1048576).toFixed(1) + " МБ" : Math.max(1, Math.round(n/1024)) + " КБ";
+
+function setFile(f) {
+  if (!f) return;
+  if (!/\.(mdb|accdb)$/i.test(f.name)) { setStatus("Нужен файл .mdb или .accdb", "err"); return; }
+  file = f;
+  info.style.display = "block";
+  info.textContent = `${f.name} · ${fmtSize(f.size)}`;
+  go.disabled = false;
+  setStatus("");
+}
+function setStatus(text, cls = "") { status.className = cls; status.textContent = text; }
+
+drop.addEventListener("click", () => input.click());
+drop.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); input.click(); } });
+input.addEventListener("change", () => setFile(input.files[0]));
+["dragenter","dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave","drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => setFile(e.dataTransfer.files[0]));
+
+go.addEventListener("click", async () => {
+  if (!file) return;
+  go.disabled = true; bar.style.display = "block"; setStatus("Конвертация…");
+  if (lastUrl) { URL.revokeObjectURL(lastUrl); lastUrl = null; }
+
+  const fd = new FormData();
+  fd.append("file", file);
+
+  try {
+    const res = await fetch("/api/convert", { method: "POST", body: fd });
+    if (!res.ok) {
+      let msg = res.statusText;
+      try { msg = (await res.json()).detail || msg; } catch {}
+      throw new Error(msg);
+    }
+    const blob = await res.blob();
+    const name = file.name.replace(/\.[^.]+$/, "") + ".wsnin";
+    lastUrl = URL.createObjectURL(blob);
+    status.className = "ok";
+    status.innerHTML = "";
+    status.append(`Готово · ${fmtSize(blob.size)}`);
+    status.append(document.createElement("br"));
+    const a = document.createElement("a");
+    a.className = "dl"; a.href = lastUrl; a.download = name; a.textContent = "Скачать " + name;
+    status.append(a);
+    a.click();
+  } catch (e) {
+    setStatus("Ошибка: " + e.message, "err");
+  } finally {
+    bar.style.display = "none"; go.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
