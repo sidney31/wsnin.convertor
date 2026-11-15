@@ -1,0 +1,14 @@
+# Python environment: create it on each machine (python3 -m venv venv)
+venv/
+.venv/
+__pycache__/
+*.pyc
+
+# Test / sample conversion results
+test_wsnin/
+*.wsnin
+*.mdb
+*.accdb
+
+# OS junk
+.DS_Store
