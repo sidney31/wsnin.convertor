@@ -55,8 +55,8 @@ async def index():
 @app.post("/api/convert")
 async def api_convert(file: UploadFile = File(...)):
     filename = file.filename or "database.mdb"
-    if not filename.lower().endswith((".mdb", ".accdb")):
-        raise HTTPException(400, "Нужен файл .mdb или .accdb")
+    if not filename.lower().endswith(".mdb"):
+        raise HTTPException(400, "Нужна база заказа К3 в формате .mdb")
     input_name = os.path.splitext(os.path.basename(filename))[0]
 
     src = WORK_DIR / f"{uuid.uuid4().hex}.mdb"

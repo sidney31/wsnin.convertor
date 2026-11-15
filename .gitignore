@@ -8,7 +8,6 @@ __pycache__/
 test_wsnin/
 *.wsnin
 *.mdb
-*.accdb
 
 # OS junk
 .DS_Store

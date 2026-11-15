@@ -37,8 +37,6 @@
     display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
     text-align: center; font: inherit; color: inherit; cursor: pointer; overflow: hidden;
     transition: border-color .2s var(--ease), background-color .2s var(--ease); }
-  .drop::before { content: ""; position: absolute; top: 18px; left: 18px; width: 14px; height: 14px;
-    border-radius: 50%; background: var(--ground); box-shadow: inset 0 1px 2px rgba(0,0,0,.28); }
   .drop:hover, .drop.over { border-color: #9DA2A1; background: #FBFBFA; }
   .drop.over { border-color: var(--mark); }
   .drop:disabled { cursor: progress; }
@@ -74,7 +72,7 @@
     <span id="sub">или нажмите, чтобы выбрать .mdb</span>
     <div class="bar" id="bar" hidden aria-hidden="true"><i></i></div>
   </button>
-  <input id="input" type="file" accept=".mdb,.accdb" hidden>
+  <input id="input" type="file" accept=".mdb" hidden>
   <a class="get" id="get" hidden>
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
     <span id="getText">Скачать</span>
@@ -110,7 +108,7 @@ function reset() {
 async function upload(file) {
   if (!file || busy) return;
   reset();
-  if (!/\.(mdb|accdb)$/i.test(file.name)) { say("Нужен файл .mdb или .accdb.", true); return; }
+  if (!/\.mdb$/i.test(file.name)) { say("Нужна база заказа К3 в формате .mdb.", true); return; }
   if (file.size > 200 * 1048576) { say("Файл больше 200 МБ.", true); return; }
 
   busy = true;
